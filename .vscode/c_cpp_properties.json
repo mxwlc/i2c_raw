@@ -1,0 +1,24 @@
+{
+	"env": {
+		"myIncludePath": ["${workspaceFolder}/include", "${workspaceFolder}/src"]
+	},
+	"configurations": [
+		{
+			"name": "AVR",
+			"includePath": [
+				"C:/Users/maxwe/scoop/apps/avr-gcc/14.1.0/avr/include",
+				"C:/Users/maxwe/scoop/apps/avr-gcc/14.1.0/include"
+			],
+			"compilerPath": "C:/Users/maxwe/scoop/apps/avr-gcc/14.1.0/bin/avr-gcc.exe",
+			"intelliSenseMode": "windows-gcc-x64",
+			"cStandard": "c17",
+			"cppStandard": "c++17",
+			"compilerArgs": [
+				"-mmcu=atmega328p", // Will ensure MCU defines are set correctly
+				"-DF_CPU=16000000UL", // Will ensure F_CPU is set correctly
+				"-Os" // Will avoid optimization warnings re: _delay
+			]
+		}
+	],
+	"version": 4
+}

@@ -1,0 +1,10 @@
+{
+	"files.associations": {
+		"*.flex": "lex",
+		"iom328p.h": "c",
+		"io.h": "c",
+		"usart.h": "c",
+		"stdio.h": "c"
+	},
+	"C_Cpp.default.compilerPath": "c:\\Users\\maxwe\\scoop\\apps\\avr-gcc\\14.1.0\\bin\\avr-gcc.exe"
+}

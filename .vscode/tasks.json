@@ -1,0 +1,21 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+		{
+			"label": "make",
+			"detail": "Run make",
+			"type": "shell",
+			"command": "make",
+			"options": {
+				"env": {}
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		}
+	]
+}
