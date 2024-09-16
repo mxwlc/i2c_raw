@@ -15,8 +15,10 @@ System Includes
 */
 #include <avr/io.h>
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <util/delay.h>
+#include <util/twi.h>
 /*
 ####################################################
 Local Includes
@@ -25,21 +27,37 @@ Local Includes
 #include "../include/USART.h"
 /*
 ####################################################
-Macros
+Typedef
+####################################################
+*/
+typedef uint8_t i2c_error_ret;
+/*
+####################################################
+Defines
 ####################################################
 */
 #define DELAY_MS 1000L
 #define SCL_SPEED 100000UL
 #define INTERNAL_PULL_UP 1
+#define SDA_PIN PC4
+#define SCL_PIN PC5
+
+/*
+####################################################
+Macros
+####################################################
+*/
 #define BITRATE(TWSR)                                                                                                  \
     (uint8_t)(((F_CPU / SCL_SPEED) - 16) / (2 * (uint16_t)pow(4, (TWSR & ((1 << TWPS0) | (1 << TWPS1))))))
+#define SLA_ADDR_W(ADDR) ((ADDR << 1) | TW_WRITE)
+#define SLA_ADDR_R(ADDR) ((ADDR << 1) | TW_READ)
 /*
 ####################################################
 Function Prototypes
 ####################################################
 */
 void i2c_init(void);
-uint8_t i2c_start(void);
+i2c_error_ret i2c_start(void);
 void i2c_stop(void);
 /*
 TODO :
@@ -52,9 +70,8 @@ TODO :
 
     There is some information regarding the code implementation within the TWI section of the datasheet
 */
-uint8_t i2c_write(uint8_t data);
-char i2c_read_ACK(void);
-char i2c_read_NACK(void);
+i2c_error_ret i2c_write(uint8_t data);
+unsigned char i2c_read(bool read_ack);
 /*
 ####################################################
 Global Variables
@@ -75,97 +92,111 @@ int main(void)
     Needed for printf to transmit over USART (UART)
     */
     stdout = &USART_stdout;
+    // while (1)
+    // {
+    //     i2c_start();
+    //     i2c_write(0b00100000);
+    //     i2c_stop();
+    //     i2c_start();
+    //     i2c_write(0b00100000);
+    //     char data;
+    //     data = i2c_read_NACK();
+    //     i2c_stop();
+    //     printf("0x%X\n", data);
+    //     _delay_ms(DELAY_MS);
+    // }
     while (1)
     {
-        i2c_start();
-        i2c_write(0b00100000);
-		i2c_stop();
-		i2c_start();
-        i2c_write(0b00100000);
-        char data;
-        data = i2c_read_NACK();
-        i2c_stop();
-        printf("0x%X\n", data);
-		_delay_ms(DELAY_MS);
     }
-//     while (1)
-//     {
-
-//         //      printf("TWBR = %u of size %u bytes\n",BITRATE(TWSR = (0x00 & 0x03)), sizeof(TWSR));
-//         printf("TWBR = %u\n", TWBR);
-//         _delay_ms(DELAY_MS);
-//         printf("Error Code : %u\n", i2c_start());
-//         _delay_ms(DELAY_MS);
-//     }
 }
-
 /*
-####################################################
-Function Definitions
-####################################################
-*/
+ ####################################################
+ Function Definitions
+ ####################################################
+ */
 void i2c_init(void)
 {
-    if (INTERNAL_PULL_UP)
-    {
-        DDRC |= (1 << PC4) | (1 << PC5);
-        PORTC |= (1 << PC4) | (1 << PC5);
-    }
+    DDRC |= (1 << SDA_PIN) | (1 << SCL_PIN);
+	
+#if INTERNAL_PULL_UP
+    /* Pulls SDA and SCL up to 3v3*/
+    PORTC |= (1 << SDA_PIN) | (1 << SCL_PIN);
+
+#else
+    /* Resets SDA and SCL -> A & ~A = 0*/
+    PORTC &= ~((1 << SDA_PIN) | (1 << SCL_PIN));
+#endif
+    // DDRC &= ~((1 << SDA_PIN) | (1 << SCL_PIN));
     /* BITRATE is a C macro so the value of TWBR is calculated at compile time */
     TWBR = BITRATE(TWSR = 0x00);
 }
 
 void i2c_stop(void)
 {
-	printf("Stop\n");
     TWCR = (1 << TWINT) | (1 << TWEN) | (1 << TWSTO);
     while ((TWCR & (1 << TWSTO)))
         ;
 }
 
-uint8_t i2c_start(void)
+i2c_error_ret i2c_start(void)
 {
-	printf("Start\n");
     /* Sends Start Flag */
     TWCR = (1 << TWSTA) | (1 << TWEN) | (1 << TWINT);
     /* Wait until the start signal is sent */
     while (!(TWCR & (1 << TWINT)))
         ;
-    return ((TWSR & 0xF8) == 0x08) ? 0 : 1;
+    if (TW_STATUS != TW_START && TW_STATUS != TW_REP_START)
+    {
+        return TW_STATUS;
+    }
+    return 0;
 }
-uint8_t i2c_write(uint8_t data)
+i2c_error_ret i2c_write_sla(uint8_t sla_addr)
 {
-	printf("Write\n");
-    TWDR = data;
+    TWDR = sla_addr;
     TWCR = (1 << TWINT) | (1 << TWEN);
     while (!(TWCR & (1 << TWINT)))
         ;
     /* ACK Recieved */
-    if ((TWSR & 0xF8) != 0x18)
+    if (TW_STATUS != TW_MT_SLA_ACK && TW_STATUS != TW_MT_SLA_NACK)
     {
-        return 0;
+        return TW_STATUS;
     }
-    /* NACK Recieved */
-    if ((TWSR & 0xF8) != 0x20)
-    {
-        return 1;
-    }
-    /* Failed */
-    return 2;
+    return 0;
 }
-char i2c_read_ACK(void)
-{
-	printf("Read Ack\n");
-    TWCR = (1 << TWEN) | (1 << TWINT) | (1 << TWEA);
+
+i2c_error_ret i2c_write(uint8_t data){
+	TWDR = data;
     while (!(TWCR & (1 << TWINT)))
         ;
-    return TWDR;
+	if (TW_STATUS != TW_MT_DATA_ACK){
+		return TW_STATUS;
+	}
+	return 0;
 }
-char i2c_read_NACK(void)
+
+unsigned char i2c_read(bool read_ack)
 {
-	printf("Read Nack\n");
-    TWCR = (1 << TWEN) | (1 << TWINT);
-    while (!(TWCR & (1 << TWINT)))
-        ;
-    return TWDR;
+    if (read_ack)
+    {
+        TWCR = (1 << TWEN) | (1 << TWINT) | (1 << TWEA);
+        while (!(TWCR & (1 << TWINT)))
+            ;
+        if (TW_STATUS != TW_MR_DATA_ACK)
+        {
+            return TW_STATUS;
+        }
+    }
+    else
+    {
+        TWCR = (1 << TWEN) | (1 << TWINT);
+        while (!(TWCR & (1 << TWINT)))
+            ;
+        if (TW_STATUS != TW_MR_DATA_NACK)
+        {
+            return TW_STATUS;
+        }
+    }
+    uint8_t data = TWDR;
+    return data;
 }
