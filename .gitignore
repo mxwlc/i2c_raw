@@ -2,11 +2,10 @@
 *.d
 
 # Object files
-build/*.o
-build/*.ko
-build/*.obj
-build/*.elf
-
+build\*.o
+build\*.ko
+build\*.obj
+build\*.elf
 # Linker output
 *.ilk
 *.map
